@@ -408,10 +408,14 @@ public class GroupDataSource extends C3p0DataSourceAdapter implements GroupDataS
 		}
 
 		try {
+			// 权限检查，根据配置判断当前应用是否有db的访问权限
 			this.securityCheck();
+			// 初始化配置相关的组件
 			this.initConfig();
+			// 加载自定义jdbcFilter过滤器
 			this.initFilters();
 
+			// 逐个执行jdbcFilter过滤器 initGroupDataSource
 			if (filters != null && filters.size() > 0) {
 				JdbcFilter chain = new DefaultJdbcFilterChain(filters) {
 					@Override
@@ -419,15 +423,18 @@ public class GroupDataSource extends C3p0DataSourceAdapter implements GroupDataS
 						if (index < filters.size()) {
 							filters.get(index++).initGroupDataSource(source, chain);
 						} else {
+							// 开始初始化
 							source.initInternal();
 						}
 					}
 				};
 				chain.initGroupDataSource(this, chain);
 			} else {
+				// 开始初始化
 				initInternal();
 			}
 
+			// 记录下启动次数
 			this.recordJdbcRefInitializationTimes();
 		} catch (Exception e) {
 			String errorMsg = "init GroupDataSource[" + jdbcRef + "] error!";
@@ -517,14 +524,19 @@ public class GroupDataSource extends C3p0DataSourceAdapter implements GroupDataS
 		}
 	}
 
+	/**
+	 * 初始化数据源，会将读写数据源单独初始化
+	 */
 	private void initDataSources() {
 		try {
+			// 初始化读库数据源，连接获取的时候读库间根据权重负载均衡 选择SingleDataSource
 			this.readDataSource = new LoadBalancedDataSource(getLoadBalancedConfig(groupConfig.getDataSourceConfigs()),
 			      this.filters, systemConfigManager.getSystemConfig(), this.configManagerType, this.configService,
 			      groupConfig.getRouterStrategy());
 			this.readDataSource.init();
 			this.writeDataSource = new FailOverDataSource(getFailoverConfig(groupConfig.getDataSourceConfigs()),
 			      this.filters);
+			// 初始化写库(master)数据源 快速失败
 			this.writeDataSource.init();
 		} catch (RuntimeException e) {
 			try {
@@ -542,9 +554,14 @@ public class GroupDataSource extends C3p0DataSourceAdapter implements GroupDataS
 	}
 
 	protected void initInternal() {
+		// 初始化 SingleDataSource 单数据的源管理器
+		// 启动监控线程任务 CloseDataSourceTask, 不断轮训待关闭的SingleDataSource(配置刷新后 老的ds或者主动关闭的ds）
 		SingleDataSourceManagerFactory.getDataSourceManager().init();
+		// 初始化主库和从库的SingleDataSource
 		initDataSources();
+		// 初始化读写策略，可以强指定读master
 		initReadWriteStrategy();
+		// 将GroupDataSource自身加入到 配置刷新列表中，每隔60秒会检查一次配置，如果发生变更的话会重新拉取配置 重建sds
 		DataSourceConfigRefresh.getInstance().register(this);
 		LOGGER.info(String.format("GroupDataSource(%s) successfully initialized.", jdbcRef));
 	}
