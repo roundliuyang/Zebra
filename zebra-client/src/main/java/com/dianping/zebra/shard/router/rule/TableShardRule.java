@@ -97,7 +97,9 @@ public class TableShardRule {
 			}
 
 			// full table scan if is not insert sql.
+			// 如果是 insert 或 replace 语句，必须提供分片键的值，不然直接报错
 			if (type != SqlType.INSERT && type != SqlType.REPLACE) {
+				// 如果禁止不带分片键的写操作 forbidNoShardKeyWrite = true，则直接报错；否则返回所有的分库和分表，全表扫描
 				if (forbidNoShardKeyWrite) {
 					if (SqlType.UPDATE == type || SqlType.DELETE == type) {
 						throw new ShardRouterException("Update or delete is forbidden without shard key!");

@@ -205,6 +205,9 @@ public class GroupConnection implements Connection {
 		return rConnection;
 	}
 
+	/**
+	 * 读写分离的核心逻辑位于 GroupConnection#getRealConnection(sql, forceWrite) 中， 根据不同的情况 从 读 readDataSource 还是 writeDataSource 取底层连接
+	 */
 	Connection getRealConnection(String sql, boolean forceWrite) throws SQLException {
 		if (this.routerType == RouterType.SLAVE_ONLY) {
 			return getReadConnection();

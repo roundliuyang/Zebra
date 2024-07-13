@@ -589,15 +589,19 @@ public class GroupDataSource extends C3p0DataSourceAdapter implements GroupDataS
 			return;
 		}
 
+		// 拉取最新配置
 		final GroupDataSourceConfig newGroupConfig = buildGroupConfig();
 
+		// 如果配置未变更，则不再往下执行
 		if (this.groupConfig.toString().equals(newGroupConfig.toString())) {
 			return;
 		}
 
+		// 随机阻塞一会，避免对db造成瞬时大量地连接压力
 		SmoothReload sr = new SmoothReload(getMaxWarmupTime());
 		sr.waitForReload();
 
+		// jdbc 过滤器 #refreshGroupDataSource 通知group ds刷新了
 		if (filters != null && filters.size() > 0) {
 			JdbcFilter chain = new DefaultJdbcFilterChain(filters) {
 				@Override
@@ -605,6 +609,7 @@ public class GroupDataSource extends C3p0DataSourceAdapter implements GroupDataS
 					if (index < filters.size()) {
 						filters.get(index++).refreshGroupDataSource(source, propertyToChange, chain);
 					} else {
+						// 刷新地内部逻辑
 						source.refreshInternal(newGroupConfig);
 					}
 				}
@@ -619,10 +624,12 @@ public class GroupDataSource extends C3p0DataSourceAdapter implements GroupDataS
 		LOGGER.info(String.format("start to refresh the GroupDataSource(%s)...", jdbcRef));
 
 		try {
+			// 重置写库 singleDataSource
 			Map<String, DataSourceConfig> newFailoverConfig = getFailoverConfig(
 			      groupDataSourceConfig.getDataSourceConfigs());
 			this.writeDataSource.refresh(newFailoverConfig);
 
+			// 重置读库
 			Map<String, DataSourceConfig> newLoadBalancedConfig = getLoadBalancedConfig(
 			      groupDataSourceConfig.getDataSourceConfigs());
 			this.readDataSource.refresh(newLoadBalancedConfig);

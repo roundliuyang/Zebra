@@ -119,6 +119,7 @@ public class ShardDataSource extends ShardDataSourceConfigAdapter {
 	}
 
 	private void initInternal() {
+		// 通过 routerFactory 构建出 ShardRouter
 		this.router = routerFactory.build();
 		if (this.router instanceof DefaultShardRouter) {
 			((DefaultShardRouter) this.router).setOptimizeShardKeyInSql(this.optimizeShardKeyInSql);
@@ -128,6 +129,7 @@ public class ShardDataSource extends ShardDataSourceConfigAdapter {
 			dataSourceRepository = DataSourceRepository.getInstance();
 		}
 
+		// 初始化dataSourceRepository ，内部会挨个初始化 GroupDataSource
 		if (dataSourcePool != null) {
 			dataSourceRepository.init(dataSourcePool);
 		} else {
@@ -137,12 +139,14 @@ public class ShardDataSource extends ShardDataSourceConfigAdapter {
 		}
 
 		// init thread pool
+		// GroupDataSource 初始化sql执行线程池 SQLThreadPoolExecutor， 如果是读写分离的则会创建1个读1个写 总共2个线程池
 		SQLThreadPoolExecutor.getInstance(false);
 		if (SQLThreadPoolExecutor.readWriteSplitPool) {
 			SQLThreadPoolExecutor.getInstance(true);
 		}
 
 		// init SQL Parser
+		// 初始化 sql 解析器， 基于 alibabali.druid ast ； 解析一下 "select * from Test"
 		SQLParser.init();
 
 		if (ruleName != null) {
